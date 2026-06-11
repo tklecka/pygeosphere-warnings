@@ -1,0 +1,66 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pygeosphere-warnings"
+version = "0.1.0"
+description = "Asynchronous Python client for the GeoSphere Austria Warn API"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Tim Klecka" }]
+requires-python = ">=3.12"
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = ["aiohttp>=3.9.0"]
+
+[project.urls]
+Homepage = "https://github.com/tklecka/pygeosphere-warnings"
+Repository = "https://github.com/tklecka/pygeosphere-warnings"
+Issues = "https://github.com/tklecka/pygeosphere-warnings/issues"
+Documentation = "https://openapi.hub.geosphere.at/warnapi/v1/"
+
+[dependency-groups]
+dev = [
+  "mypy>=1.11",
+  "pytest>=8.0",
+  "pytest-asyncio>=0.24",
+  "pytest-cov>=5.0",
+  "ruff>=0.8.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pygeosphere_warnings"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["A", "B", "C4", "D", "E", "F", "I", "N", "PT", "RET", "RUF", "S", "SIM", "TRY", "UP", "W"]
+ignore = [
+  "TRY003", # long exception messages are fine for a small client
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+  "S101", # asserts are expected in tests
+  "D",    # no docstring enforcement in tests
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
