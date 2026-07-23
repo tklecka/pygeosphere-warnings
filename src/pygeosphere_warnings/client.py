@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
@@ -34,13 +36,19 @@ class GeoSphereWarningsClient:
         self._base_url = base_url.rstrip("/")
         self._timeout = aiohttp.ClientTimeout(total=request_timeout)
 
+    @asynccontextmanager
     async def _request(
         self,
         method: str,
         path: str,
         params: dict[str, Any] | None = None,
-    ) -> aiohttp.ClientResponse:
-        """Perform a request and handle transport errors."""
+    ) -> AsyncIterator[aiohttp.ClientResponse]:
+        """Perform a request, handle transport errors and release the response.
+
+        The response is released when the context manager exits, including
+        when the caller raises, so a failing request never keeps a connector
+        slot of the shared session occupied.
+        """
         try:
             response = await self._session.request(
                 method,
@@ -52,7 +60,8 @@ class GeoSphereWarningsClient:
             raise GeoSphereConnectionError(
                 f"Error communicating with the GeoSphere Warn API: {err}"
             ) from err
-        return response
+        async with response:
+            yield response
 
     async def get_last_modified(self) -> datetime | None:
         """Return the timestamp of the latest warning update.
@@ -60,12 +69,14 @@ class GeoSphereWarningsClient:
         Issues a cheap HEAD request that can be used to decide whether a
         full warning fetch is necessary.
         """
-        response = await self._request("HEAD", "/getWarnstatus")
-        if response.status >= 400:
-            raise GeoSphereApiError(
-                f"Unexpected response from the GeoSphere Warn API: {response.status}"
-            )
-        if (last_modified := response.headers.get("Last-Modified")) is None:
+        async with self._request("HEAD", "/getWarnstatus") as response:
+            if response.status >= 400:
+                raise GeoSphereApiError(
+                    "Unexpected response from the GeoSphere Warn API: "
+                    f"{response.status}"
+                )
+            last_modified = response.headers.get("Last-Modified")
+        if last_modified is None:
             return None
         try:
             return parsedate_to_datetime(last_modified)
@@ -78,16 +89,16 @@ class GeoSphereWarningsClient:
         self, latitude: float, longitude: float, language: str = "en"
     ) -> LocationWarnings:
         """Return the warnings for the municipality at the given coordinates."""
-        response = await self._request(
+        async with self._request(
             "GET",
             "/getWarningsForCoords",
             params={"lat": latitude, "lon": longitude, "lang": language},
-        )
-        if response.status == 404:
-            raise GeoSphereMunicipalityNotFoundError(
-                f"No Austrian municipality found at {latitude}, {longitude}"
-            )
-        data = await self._parse_json(response)
+        ) as response:
+            if response.status == 404:
+                raise GeoSphereMunicipalityNotFoundError(
+                    f"No Austrian municipality found at {latitude}, {longitude}"
+                )
+            data = await self._parse_json(response)
         try:
             return LocationWarnings.from_api(data)
         except (KeyError, TypeError, ValueError) as err:
@@ -95,8 +106,8 @@ class GeoSphereWarningsClient:
 
     async def get_thunderstorms(self) -> dict[str, int]:
         """Return automated thunderstorm warnings by municipality id."""
-        response = await self._request("GET", "/getGewitterAuto")
-        data = await self._parse_json(response)
+        async with self._request("GET", "/getGewitterAuto") as response:
+            data = await self._parse_json(response)
         try:
             return {
                 str(properties["gemeinde"]): int(properties["intensitaet"])

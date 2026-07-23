@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pygeosphere-warnings"
-version = "0.1.0"
+version = "0.1.1"
 description = "Asynchronous Python client for the GeoSphere Austria Warn API"
 readme = "README.md"
 license = "MIT"
