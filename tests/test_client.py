@@ -1,5 +1,6 @@
 """Tests for the GeoSphere Austria Warn API client."""
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
@@ -222,3 +223,60 @@ async def test_get_thunderstorms_malformed(make_client: ClientFactory) -> None:
 
     with pytest.raises(GeoSphereApiError, match="Could not parse"):
         await client.get_thunderstorms()
+
+
+@pytest.mark.parametrize(
+    ("status", "expected_error"),
+    [
+        (404, GeoSphereMunicipalityNotFoundError),
+        (500, GeoSphereApiError),
+    ],
+    ids=["not-found", "http-error"],
+)
+async def test_error_paths_release_the_connection(
+    make_client: ClientFactory,
+    single_connection_session: aiohttp.ClientSession,
+    status: int,
+    expected_error: type[Exception],
+) -> None:
+    """An error response with an unfinished body must not keep its connection.
+
+    aiohttp only returns a connection to the pool on its own once the payload
+    reaches EOF, so an error raised before the whole body arrived holds the
+    connector slot for as long as the exception - and with it the traceback
+    referencing the response - is retained by the caller.
+    """
+    stall = asyncio.Event()
+
+    async def handler(request: web.Request) -> web.StreamResponse:
+        if request.query["lat"] == "1.0":
+            return web.json_response(WARNINGS_RESPONSE)
+        response = web.StreamResponse(status=status)
+        await response.prepare(request)
+        await response.write(b"error page fragment")
+        await stall.wait()
+        return response
+
+    client = await make_client(
+        web.get("/getWarningsForCoords", handler),
+        client_session=single_connection_session,
+    )
+
+    # A Home Assistant coordinator keeps the last exception around, which is
+    # what keeps the response alive. With a single allowed connection the
+    # leaked slot starves every following request, so the timeout fails the
+    # test instead of hanging it.
+    retained: list[BaseException] = []
+    try:
+        async with asyncio.timeout(5):
+            for _ in range(3):
+                with pytest.raises(expected_error) as excinfo:
+                    await client.get_warnings_for_coords(48.2, 16.37)
+                retained.append(excinfo.value)
+
+            result = await client.get_warnings_for_coords(1.0, 16.37)
+    finally:
+        stall.set()
+
+    assert len(retained) == 3
+    assert result.municipality.name == "Wien"
