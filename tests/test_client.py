@@ -16,6 +16,7 @@ from pygeosphere_warnings import (
     WarningLevel,
     WarningType,
 )
+from pygeosphere_warnings.models import TZ_VIENNA
 
 from .conftest import ClientFactory
 
@@ -37,6 +38,7 @@ WARNINGS_RESPONSE: dict[str, Any] = {
                     "verlaufid": 789,
                     "warntypid": 1,
                     "warnstufeid": 2,
+                    "create": "2023-11-14 20:00:00+00",
                     "rawinfo": {"start": "1700000000", "end": "1700010000"},
                     "begin": "14.11.2023 23:13",
                     "end": "15.11.2023 02:00",
@@ -163,15 +165,41 @@ async def test_connection_error(session: aiohttp.ClientSession) -> None:
         await client.get_warnings_for_coords(48.2, 16.37)
 
 
-async def test_get_last_modified(make_client: ClientFactory) -> None:
+@pytest.mark.parametrize(
+    ("header", "expected"),
+    [
+        pytest.param(
+            "Tue, 14 Nov 2023 22:13:20 GMT",
+            datetime.fromtimestamp(1700000000, tz=UTC),
+            id="gmt",
+        ),
+        # The production API labels the header with the zone name instead of
+        # an offset, which RFC 2822 parsing cannot resolve.
+        pytest.param(
+            "Tue, 14 Nov 2023 23:13:20 CET",
+            datetime(2023, 11, 14, 23, 13, 20, tzinfo=TZ_VIENNA),
+            id="cet",
+        ),
+        pytest.param(
+            "Sat, 01 Aug 2026 13:22:06 CEST",
+            datetime(2026, 8, 1, 13, 22, 6, tzinfo=TZ_VIENNA),
+            id="cest",
+        ),
+    ],
+)
+async def test_get_last_modified(
+    make_client: ClientFactory, header: str, expected: datetime
+) -> None:
     async def handler(request: web.Request) -> web.Response:
-        return web.Response(headers={"Last-Modified": "Tue, 14 Nov 2023 22:13:20 GMT"})
+        return web.Response(headers={"Last-Modified": header})
 
     client = await make_client(web.head("/getWarnstatus", handler))
 
     result = await client.get_last_modified()
 
-    assert result == datetime.fromtimestamp(1700000000, tz=UTC)
+    assert result == expected
+    assert result is not None
+    assert result.tzinfo is not None
 
 
 async def test_get_last_modified_missing_header(
@@ -183,6 +211,16 @@ async def test_get_last_modified_missing_header(
     client = await make_client(web.head("/getWarnstatus", handler))
 
     assert await client.get_last_modified() is None
+
+
+async def test_get_last_modified_invalid_header(make_client: ClientFactory) -> None:
+    async def handler(request: web.Request) -> web.Response:
+        return web.Response(headers={"Last-Modified": "not a date"})
+
+    client = await make_client(web.head("/getWarnstatus", handler))
+
+    with pytest.raises(GeoSphereApiError, match="Invalid Last-Modified"):
+        await client.get_last_modified()
 
 
 async def test_get_last_modified_error(make_client: ClientFactory) -> None:
@@ -201,6 +239,8 @@ async def test_get_thunderstorms(make_client: ClientFactory) -> None:
         "features": [
             {"properties": {"gemeindenr": 90001, "intensitaet": "2"}},
             {"properties": {"gemeindenr": 10101, "intensitaet": 1}},
+            # The schema declares intensitaet as a number, not an integer.
+            {"properties": {"gemeindenr": 70804, "intensitaet": 3.0}},
             {"properties": None},
         ],
     }
@@ -212,7 +252,7 @@ async def test_get_thunderstorms(make_client: ClientFactory) -> None:
 
     result = await client.get_thunderstorms()
 
-    assert result == {"90001": 2, "10101": 1}
+    assert result == {"90001": 2, "10101": 1, "70804": 3}
 
 
 async def test_get_thunderstorms_malformed(make_client: ClientFactory) -> None:
