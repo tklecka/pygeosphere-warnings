@@ -110,7 +110,7 @@ class GeoSphereWarningsClient:
             data = await self._parse_json(response)
         try:
             return {
-                str(properties["gemeinde"]): int(properties["intensitaet"])
+                str(properties["gemeindenr"]): int(properties["intensitaet"])
                 for feature in data.get("features") or []
                 if (properties := feature.get("properties")) is not None
             }
