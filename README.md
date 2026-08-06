@@ -30,7 +30,9 @@ async def main() -> None:
         warnings = await client.get_warnings_for_coords(48.2486, 16.3564, "en")
         print(f"Municipality: {warnings.municipality.name}")
         for warning in warnings.warnings:
-            print(f"- {warning.warning_type.name} ({warning.level.name}): {warning.text}")
+            print(
+                f"- {warning.warning_type.name} ({warning.level.name}): {warning.text}"
+            )
 
         # Automated thunderstorm warnings (municipality id -> intensity)
         thunderstorms = await client.get_thunderstorms()
