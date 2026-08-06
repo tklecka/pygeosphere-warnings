@@ -199,8 +199,8 @@ async def test_get_thunderstorms(make_client: ClientFactory) -> None:
     payload: dict[str, Any] = {
         "type": "FeatureCollection",
         "features": [
-            {"properties": {"gemeinde": 90001, "intensitaet": "2"}},
-            {"properties": {"gemeinde": 10101, "intensitaet": 1}},
+            {"properties": {"gemeindenr": 90001, "intensitaet": "2"}},
+            {"properties": {"gemeindenr": 10101, "intensitaet": 1}},
             {"properties": None},
         ],
     }
@@ -217,7 +217,7 @@ async def test_get_thunderstorms(make_client: ClientFactory) -> None:
 
 async def test_get_thunderstorms_malformed(make_client: ClientFactory) -> None:
     async def handler(request: web.Request) -> web.Response:
-        return web.json_response({"features": [{"properties": {"gemeinde": 1}}]})
+        return web.json_response({"features": [{"properties": {"gemeindenr": 1}}]})
 
     client = await make_client(web.get("/getGewitterAuto", handler))
 
