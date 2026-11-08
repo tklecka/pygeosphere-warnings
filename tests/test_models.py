@@ -67,6 +67,26 @@ def test_is_upcoming() -> None:
     assert not warning.is_upcoming(datetime.fromtimestamp(1700020000, tz=UTC))
 
 
+def test_warning_created_defaults_to_none() -> None:
+    """Constructing a warning without created keeps working (0.1.x API)."""
+    warning = WeatherWarning(
+        warning_id=1,
+        change_id=2,
+        course_id=3,
+        warning_type=WarningType.STORM,
+        level=WarningLevel.YELLOW,
+        start=datetime.fromtimestamp(1700000000, tz=UTC),
+        end=datetime.fromtimestamp(1700010000, tz=UTC),
+        text="",
+        impacts="",
+        recommendations="",
+        meteo_text="",
+        update_reason="",
+    )
+
+    assert warning.created is None
+
+
 def test_parse_time_prefers_epoch() -> None:
     result = _parse_time("1700000000", "14.11.2023 23:13")
 
