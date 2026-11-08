@@ -84,7 +84,7 @@ class WeatherWarning:
     course_id: int
     warning_type: WarningType
     level: WarningLevel
-    created: datetime | None
+    created: datetime | None = None
     start: datetime
     end: datetime
     text: str
