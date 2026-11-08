@@ -15,7 +15,7 @@ from .exceptions import (
     GeoSphereConnectionError,
     GeoSphereMunicipalityNotFoundError,
 )
-from .models import LocationWarnings
+from .models import TZ_VIENNA, LocationWarnings
 
 DEFAULT_BASE_URL = "https://warnungen.zamg.at/wsapp/api"
 DEFAULT_TIMEOUT = 10
@@ -79,11 +79,16 @@ class GeoSphereWarningsClient:
         if last_modified is None:
             return None
         try:
-            return parsedate_to_datetime(last_modified)
+            parsed = parsedate_to_datetime(last_modified)
         except ValueError as err:
             raise GeoSphereApiError(
                 f"Invalid Last-Modified header: {last_modified}"
             ) from err
+        # The API labels the header with the zone name "CET"/"CEST", which
+        # RFC 2822 parsing treats as "-0000" and returns naive.
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=TZ_VIENNA)
+        return parsed
 
     async def get_warnings_for_coords(
         self, latitude: float, longitude: float, language: str = "en"

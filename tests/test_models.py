@@ -14,6 +14,7 @@ WARNING_PROPERTIES: dict[str, Any] = {
     "verlaufid": 789,
     "warntypid": 5,
     "warnstufeid": 3,
+    "create": "2023-11-14 20:00:00+00",
     "rawinfo": {"start": "1700000000", "end": "1700010000"},
     "begin": "14.11.2023 23:13",
     "end": "15.11.2023 02:00",
@@ -33,6 +34,13 @@ def test_warning_from_api() -> None:
     assert warning.level is WarningLevel.RED
     assert warning.impacts == ""
     assert warning.recommendations == ""
+    assert warning.created == datetime(2023, 11, 14, 20, 0, tzinfo=UTC)
+
+
+def test_warning_from_api_without_created() -> None:
+    data = {k: v for k, v in WARNING_PROPERTIES.items() if k != "create"}
+
+    assert WeatherWarning.from_api(data).created is None
 
 
 def test_warning_from_api_without_rawinfo() -> None:
@@ -49,6 +57,14 @@ def test_is_active() -> None:
 
     assert warning.is_active(datetime.fromtimestamp(1700005000, tz=UTC))
     assert not warning.is_active(datetime.fromtimestamp(1700020000, tz=UTC))
+
+
+def test_is_upcoming() -> None:
+    warning = WeatherWarning.from_api(WARNING_PROPERTIES)
+
+    assert warning.is_upcoming(datetime.fromtimestamp(1699990000, tz=UTC))
+    assert not warning.is_upcoming(datetime.fromtimestamp(1700005000, tz=UTC))
+    assert not warning.is_upcoming(datetime.fromtimestamp(1700020000, tz=UTC))
 
 
 def test_parse_time_prefers_epoch() -> None:

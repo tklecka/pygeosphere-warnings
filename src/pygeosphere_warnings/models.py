@@ -68,6 +68,13 @@ def _parse_time(raw_epoch: str | None, local_time: str | None) -> datetime:
     )
 
 
+def _parse_created(created: str | None) -> datetime | None:
+    """Parse the time the warning was issued ("2023-03-27 06:00:00+00")."""
+    if created is None:
+        return None
+    return datetime.fromisoformat(created)
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class WeatherWarning:
     """A single weather warning."""
@@ -77,6 +84,7 @@ class WeatherWarning:
     course_id: int
     warning_type: WarningType
     level: WarningLevel
+    created: datetime | None
     start: datetime
     end: datetime
     text: str
@@ -95,6 +103,7 @@ class WeatherWarning:
             course_id=data["verlaufid"],
             warning_type=WarningType(data["warntypid"]),
             level=WarningLevel(data["warnstufeid"]),
+            created=_parse_created(data.get("create")),
             start=_parse_time(rawinfo.get("start"), data.get("begin")),
             end=_parse_time(rawinfo.get("end"), data.get("end")),
             text=data.get("text") or "",
@@ -107,6 +116,10 @@ class WeatherWarning:
     def is_active(self, now: datetime) -> bool:
         """Return whether the warning is active at the given time."""
         return self.start <= now <= self.end
+
+    def is_upcoming(self, now: datetime) -> bool:
+        """Return whether the warning starts after the given time."""
+        return now < self.start
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
